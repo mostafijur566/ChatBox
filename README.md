@@ -15,6 +15,16 @@
 
 ---
 
+## 🧱 ERD Diagram
+
+Below is the Entity Relationship Diagram (ERD) of the ChatBox backend architecture:
+
+![ERD Diagram](chat_erd.png)
+
+> This diagram illustrates how users, chats, messages, participants, and other entities relate to each other in the system.
+
+---
+
 ## 🧱 ERD Overview
 
 The system is designed using a normalized database schema to support both individual and group messaging efficiently.
