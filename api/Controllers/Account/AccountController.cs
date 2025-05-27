@@ -5,7 +5,9 @@ using System.Threading.Tasks;
 using api.Data;
 using api.Dto.Account;
 using api.Interfaces;
+using api.Mappers;
 using api.Models;
+using api.Responses;
 using api.Services;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
@@ -20,19 +22,26 @@ namespace api.Controllers.Account
         private readonly ApplicationDbContext _context;
         private readonly IPasswordHasher<User> _passwordHasher;
         private readonly ITokenService _tokenService;
-        public AccountController(ApplicationDbContext context, IPasswordHasher<User> passwordHasher, ITokenService tokenService)
+        private readonly IAccountRepository _accountRepo;
+        public AccountController(
+            ApplicationDbContext context,
+            IPasswordHasher<User> passwordHasher,
+            ITokenService tokenService,
+            IAccountRepository accountRepo
+            )
         {
             _context = context;
             _passwordHasher = passwordHasher;
             _tokenService = tokenService;
+            _accountRepo = accountRepo;
         }
 
         [HttpPost("register")]
-        public async Task<IActionResult> register(RegisterDto dto)
+        public async Task<IActionResult> Register(RegisterDto dto)
         {
             if (_context.Users.Any(u => u.Phonenumber == dto.PhoneNumber))
             {
-                return BadRequest("User already exists");
+                return BadRequest(new ResponseWithStatuscode(400, "User already exists"));
             }
 
             var user = new User
@@ -46,25 +55,7 @@ namespace api.Controllers.Account
 
             user.Prassword = _passwordHasher.HashPassword(user, dto.password);
 
-            _context.Users.Add(user);
-            await _context.SaveChangesAsync();
-
-            return Ok("User registered successfully");
-        }        
-
-        [HttpPost("login")]
-        public async Task<IActionResult> Login(LoginDto dto)
-        {
-            var user = await _context.Users.SingleOrDefaultAsync(u => u.Phonenumber == dto.PhoneNumber);
-
-            if (user == null)
-            {
-                return Unauthorized("Invalid credentials.");
-            }
-
-            var result = _passwordHasher.VerifyHashedPassword(user, user.Prassword, dto.Password);
-            if (result == PasswordVerificationResult.Failed)
-                return Unauthorized("Invalid credentials.");
+            await _accountRepo.RegisterAsync(user);
 
             // Generate JWT token
             var token = _tokenService.CreateToken(user);
@@ -72,8 +63,32 @@ namespace api.Controllers.Account
             return Ok(new
             {
                 token = token,
-                userId = user.Id,
-                username = user.Username
+                user = user.ToUserDto(),
+                message = "User registered successfully"
+            });
+        }
+
+        [HttpPost("login")]
+        public async Task<IActionResult> Login(LoginDto dto)
+        {
+            var user = await _accountRepo.GetByPhoneNumberOrUsernameAsync(dto.PhoneNumberOrUsername);
+
+            if (user == null)
+            {
+                return Unauthorized(new ResponseWithStatuscode(401, "Invalid credentials."));
+            }
+
+            var result = _passwordHasher.VerifyHashedPassword(user, user.Prassword, dto.Password);
+            if (result == PasswordVerificationResult.Failed)
+                return Unauthorized(new ResponseWithStatuscode(401, "Invalid credentials."));
+
+            // Generate JWT token
+            var token = _tokenService.CreateToken(user);
+
+            return Ok(new
+            {
+                token = token,
+                user = user.ToUserDto()
             });
         }
     }

@@ -10,14 +10,14 @@ namespace api.Dto.Account
     {
         [Required]
         [MaxLength(20, ErrorMessage = "Username cannt be over 20 characters")]
-        public string Username { get; set; }
+        public string Username { get; set; } = string.Empty;
 
         [Required]
         [Phone]
-        public string PhoneNumber { get; set; }
+        public string PhoneNumber { get; set; } = string.Empty;
 
         [Required]
         [MinLength(6, ErrorMessage = "Password cannot be less than 6 characters")]
-        public string password { get; set; }
+        public string password { get; set; } = string.Empty;
     }
 }

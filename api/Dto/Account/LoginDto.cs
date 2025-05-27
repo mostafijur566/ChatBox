@@ -7,7 +7,7 @@ namespace api.Dto.Account
 {
     public class LoginDto
     {
-        public string PhoneNumber { get; set; }
-        public string Password { get; set; }
+        public string PhoneNumberOrUsername { get; set; } = string.Empty;
+        public string Password { get; set; } = string.Empty;
     }
 }
