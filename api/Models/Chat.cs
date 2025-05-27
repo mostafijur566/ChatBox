@@ -18,5 +18,6 @@ namespace api.Models
         // Navigation properties
         [ForeignKey("CreatedByUserId")]
         public User? CreatedByUser { get; set; }
+        public ICollection<ChatParticipant>? Participants { get; set; }
     }
 }

@@ -17,7 +17,7 @@ namespace api.Models
         // Navigation proparties
         [ForeignKey("ChatId")]
         public Chat? Chat { get; set; }
-        
+
         [ForeignKey("UserId")]
         public User? User { get; set; }
     }
