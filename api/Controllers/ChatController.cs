@@ -5,6 +5,8 @@ using System.Security.Claims;
 using System.Threading.Tasks;
 using api.Data;
 using api.Dto.Chat;
+using api.Interfaces;
+using api.Mappers;
 using api.Models;
 using api.Responses;
 using Microsoft.AspNetCore.Authorization;
@@ -18,9 +20,11 @@ namespace api.Controllers.Account
     public class ChatController : ControllerBase
     {
         private readonly ApplicationDbContext _context;
-        public ChatController(ApplicationDbContext context)
+        private readonly IChatRepository _chatRepo;
+        public ChatController(ApplicationDbContext context, IChatRepository chatRepo)
         {
             _context = context;
+            _chatRepo = chatRepo;
         }
 
         [HttpGet("{chatId}")]
@@ -33,7 +37,7 @@ namespace api.Controllers.Account
             return Ok(chat);
         }
 
-        [HttpPost]
+        [HttpPost("create")]
         [Authorize] // Required to get claims from JWT
         public async Task<IActionResult> CreateChat([FromForm] CreateChatDto dto)
         {
@@ -61,17 +65,7 @@ namespace api.Controllers.Account
                 if (participantIds.Count != 2)
                     return BadRequest(new { status = 400, message = "1-to-1 chat must have exactly 1 other participant." });
 
-                var user1 = participantIds[0];
-                var user2 = participantIds[1];
-
-                var existingChat = await _context.Chats
-                    .Include(c => c.Participants)
-                    .Where(c => !c.IsGroup)
-                    .Where(c => c.Participants.Count == 2 &&
-                                c.Participants.Any(p => p.UserId == user1) &&
-                                c.Participants.Any(p => p.UserId == user2))
-                    .FirstOrDefaultAsync();
-
+                var existingChat = await _chatRepo.OneToOneChatExistsAsync( participantIds[0], participantIds[1]);
                 if (existingChat != null)
                 {
                     return Ok(new { ChatId = existingChat.Id, Message = "1-to-1 chat already exists." });
@@ -79,53 +73,23 @@ namespace api.Controllers.Account
             }
 
             // Handle optional group profile picture
-            string imageUrl = null;
+            string? imageUrl = null;
             if (dto.IsGroup && dto.GroupProfilePicture != null && dto.GroupProfilePicture.Length > 0)
             {
-                var allowedExtensions = new[] { ".jpg", ".jpeg", ".png" };
-                var ext = Path.GetExtension(dto.GroupProfilePicture.FileName).ToLower();
-
-                if (!allowedExtensions.Contains(ext))
-                    return BadRequest(new { status = 400, message = "Only .jpg, .jpeg, and .png files are allowed." });
-
-                var uploadsFolder = Path.Combine("wwwroot", "images", "group-profiles");
-                Directory.CreateDirectory(uploadsFolder);
-
-                var fileName = Guid.NewGuid() + ext;
-                var filePath = Path.Combine(uploadsFolder, fileName);
-
-                using (var stream = new FileStream(filePath, FileMode.Create))
+                try
                 {
-                    await dto.GroupProfilePicture.CopyToAsync(stream);
+                    imageUrl = await _chatRepo.SaveGroupProfilePictureAsync(dto.GroupProfilePicture);
                 }
-
-                imageUrl = $"/images/group-profiles/{fileName}";
+                catch (InvalidOperationException ex)
+                {
+                    return BadRequest(new ResponseWithStatuscode(400, $"{ex.Message}"));
+                }
             }
 
             // Create Chat
-            var chat = new Chat
-            {
-                IsGroup = dto.IsGroup,
-                GroupName = dto.IsGroup ? dto.GroupName : null,
-                GroupProfilePicture = imageUrl,
-                CreatedByUserId = createdByUserId,
-                CreatedAt = DateTime.UtcNow
-            };
+            var chat = dto.ToChatFromCreate(imageUrl, createdByUserId);
 
-            _context.Chats.Add(chat);
-            await _context.SaveChangesAsync();
-
-            // Add participants
-            var participants = participantIds.Select(uid => new ChatParticipant
-            {
-                ChatId = chat.Id,
-                UserId = uid,
-                IsAdmin = dto.IsGroup && uid == createdByUserId,
-                JoinedAt = DateTime.UtcNow
-            }).ToList();
-
-            _context.ChatParticipants.AddRange(participants);
-            await _context.SaveChangesAsync();
+            var createdChat = await _chatRepo.CreateChatAsync(chat, participantIds, createdByUserId, dto.IsGroup);
 
             return Ok(new { ChatId = chat.Id, Message = "Chat created successfully." });
         }
