@@ -162,3 +162,4 @@ D:\ASP\ChatBox\api\obj\Debug\net9.0\refint\api.dll
 D:\ASP\ChatBox\api\obj\Debug\net9.0\api.pdb
 D:\ASP\ChatBox\api\obj\Debug\net9.0\api.genruntimeconfig.cache
 D:\ASP\ChatBox\api\obj\Debug\net9.0\ref\api.dll
+D:\ASP\ChatBox\api\bin\Debug\net9.0\Microsoft.AspNetCore.Authentication.JwtBearer.dll
