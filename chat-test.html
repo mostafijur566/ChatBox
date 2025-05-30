@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SignalR Chat Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        #connectionStatus {
+            padding: 10px;
+            margin-bottom: 10px;
+            border-radius: 4px;
+        }
+        .connected {
+            background-color: #d4edda;
+            color: #155724;
+        }
+        .disconnected {
+            background-color: #f8d7da;
+            color: #721c24;
+        }
+        #chatContainer {
+            border: 1px solid #ddd;
+            padding: 15px;
+            border-radius: 4px;
+            margin-top: 20px;
+        }
+        #messages {
+            height: 300px;
+            overflow-y: auto;
+            border: 1px solid #eee;
+            padding: 10px;
+            margin-bottom: 10px;
+        }
+        #messageInput {
+            width: 70%;
+            padding: 8px;
+        }
+        button {
+            padding: 8px 15px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #0069d9;
+        }
+    </style>
+</head>
+<body>
+    <h1>SignalR Chat Test</h1>
+    
+    <div id="connectionStatus" class="disconnected">Disconnected</div>
+    
+    <div>
+        <input type="text" id="jwtToken" placeholder="Enter JWT Token" style="width: 300px; padding: 8px;">
+        <input type="text" id="chatId" placeholder="Chat ID" style="width: 80px; padding: 8px;">
+        <button id="connectButton">Connect</button>
+        <button id="disconnectButton" disabled>Disconnect</button>
+    </div>
+    
+    <div id="chatContainer" style="display: none;">
+        <div id="messages"></div>
+        <div>
+            <input type="text" id="messageInput" placeholder="Type your message...">
+            <button id="sendButton">Send</button>
+        </div>
+        <div style="margin-top: 10px;">
+            <button id="typingButton">I'm typing...</button>
+        </div>
+    </div>
+
+    <!-- Reference the SignalR client library -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/microsoft-signalr/6.0.1/signalr.min.js"></script>
+    
+    <script>
+        // DOM elements
+        const connectionStatus = document.getElementById('connectionStatus');
+        const connectButton = document.getElementById('connectButton');
+        const disconnectButton = document.getElementById('disconnectButton');
+        const chatContainer = document.getElementById('chatContainer');
+        const messages = document.getElementById('messages');
+        const messageInput = document.getElementById('messageInput');
+        const sendButton = document.getElementById('sendButton');
+        const typingButton = document.getElementById('typingButton');
+        const jwtTokenInput = document.getElementById('jwtToken');
+        const chatIdInput = document.getElementById('chatId');
+        
+        // Connection object
+        let connection = null;
+
+        // Connect to hub
+        connectButton.addEventListener('click', async () => {
+            const token = jwtTokenInput.value.trim();
+            const chatId = chatIdInput.value.trim();
+            
+            if (!token) {
+                alert('Please enter a JWT token');
+                return;
+            }
+            
+            if (!chatId) {
+                alert('Please enter a Chat ID');
+                return;
+            }
+            
+            try {
+                // Create connection
+                connection = new signalR.HubConnectionBuilder()
+                    .withUrl("http://localhost:5106/chathub", {
+                        accessTokenFactory: () => token,
+                        skipNegotiation: true,
+                        transport: signalR.HttpTransportType.WebSockets
+                    })
+                    .configureLogging(signalR.LogLevel.Information)
+                    .build();
+                
+                // Connection closed handler
+                connection.onclose(() => {
+                    updateConnectionStatus(false);
+                });
+                
+                // Message received handler
+                connection.on("ReceiveMessage", (message) => {
+                    console.log("Received message object:", message);
+                    addMessageToUI(message, false);
+                });
+                
+                // Message sent confirmation
+                connection.on("MessageSent", (message) => {
+                    console.log("Sent message object:", message);
+                    console.log("Message confirmed by server:", message);
+                });
+                
+                // Typing indicator handler
+                connection.on("UserTyping", (userId, isTyping) => {
+                    updateTypingIndicator(userId, isTyping);
+                });
+
+                // Option 2: Or implement it properly
+                connection.on("UserJoined", (userId, timestamp) => {
+                    const messageElement = document.createElement('div');
+                    messageElement.className = 'system-message';
+                    messageElement.textContent = `User ${userId} joined the chat`;
+                    messages.appendChild(messageElement);
+                });
+                
+                // Start connection
+                await connection.start();
+                updateConnectionStatus(true);
+                
+                // Join chat group
+                await connection.invoke("JoinChat", parseInt(chatId));
+                
+            } catch (err) {
+                console.error("Connection failed:", err);
+                alert("Connection error: " + err.message);
+            }
+        });
+        
+        // Disconnect from hub
+        disconnectButton.addEventListener('click', async () => {
+            try {
+                if (connection) {
+                    await connection.stop();
+                }
+            } catch (err) {
+                console.error("Disconnection error:", err);
+            }
+        });
+        
+        // Send message
+        sendButton.addEventListener('click', sendMessage);
+        
+        // Typing indicators
+        typingButton.addEventListener('mousedown', () => setTypingStatus(true));
+        typingButton.addEventListener('mouseup', () => setTypingStatus(false));
+        
+        // Send on Enter key
+        messageInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                sendMessage();
+            }
+        });
+
+        // Helper functions
+        function updateConnectionStatus(isConnected) {
+            connectionStatus.textContent = isConnected ? "Connected" : "Disconnected";
+            connectionStatus.className = isConnected ? "connected" : "disconnected";
+            chatContainer.style.display = isConnected ? "block" : "none";
+            connectButton.disabled = isConnected;
+            disconnectButton.disabled = !isConnected;
+        }
+
+        function addMessageToUI(message, isOwnMessage) {
+            const messageElement = document.createElement('div');
+            messageElement.style.textAlign = isOwnMessage ? 'right' : 'left';
+            messageElement.style.margin = '5px';
+            messageElement.style.padding = '8px';
+            messageElement.style.borderRadius = '8px';
+            messageElement.style.backgroundColor = isOwnMessage ? '#dcf8c6' : '#f1f0f0';
+            messageElement.innerHTML = `<strong>${isOwnMessage ? 'You' : message.senderName}:</strong> ${message.content}<br>
+                                      <small>${new Date(message.timestamp).toLocaleTimeString()}</small>`;
+            messages.appendChild(messageElement);
+            messages.scrollTop = messages.scrollHeight;
+        }
+
+        function updateTypingIndicator(userId, isTyping) {
+            // Remove existing typing indicators
+            document.querySelectorAll('.typing-indicator').forEach(el => el.remove());
+            
+            if (isTyping) {
+                const typingElement = document.createElement('div');
+                typingElement.className = 'typing-indicator';
+                typingElement.style.fontStyle = 'italic';
+                typingElement.style.color = '#666';
+                typingElement.textContent = `User ${userId} is typing...`;
+                messages.appendChild(typingElement);
+                messages.scrollTop = messages.scrollHeight;
+            }
+        }
+
+        async function sendMessage() {
+    const message = messageInput.value.trim();
+    const chatId = chatIdInput.value.trim();
+    
+    if (!message || !connection) return;
+    
+    try {
+        // Clear input immediately
+        messageInput.value = "";
+        
+        // Show message immediately in UI
+        const tempMessage = {
+            senderId: "You",
+            content: message,
+            timestamp: new Date().toISOString()
+        };
+        addMessageToUI(tempMessage, true);
+        
+        // Send to server with all 3 parameters
+        await connection.invoke("SendMessage", parseInt(chatId), message, "text");
+        
+    } catch (err) {
+        console.error("Error sending message:", err);
+        alert("Failed to send message: " + err.message);
+    }
+}
+
+        async function setTypingStatus(isTyping) {
+            const chatId = chatIdInput.value.trim();
+            if (connection && chatId) {
+                try {
+                    await connection.invoke("Typing", parseInt(chatId), isTyping);
+                } catch (err) {
+                    console.error("Typing indicator error:", err);
+                }
+            }
+        }
+    </script>
+</body>
+</html>

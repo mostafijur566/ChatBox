@@ -1,5 +1,6 @@
 using System.Text;
 using api.Data;
+using api.Hubs;
 using api.Interfaces;
 using api.Models;
 using api.Repositories;
@@ -12,18 +13,33 @@ using Microsoft.OpenApi.Models;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Add EF Core with SQL Server
+// Add services to the container
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
     options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
 
-// Add OpenAPI/Swagger
 builder.Services.AddControllers();
+builder.Services.AddSignalR(options =>
+{
+    options.EnableDetailedErrors = true;
+});
+
+// Configure CORS properly for SignalR
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("SignalRCors", policy =>
+    {
+        policy.WithOrigins("http://localhost") // Your frontend URL
+              .AllowAnyHeader()
+              .AllowAnyMethod()
+              .AllowCredentials(); // Important for SignalR
+    });
+});
+
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(options =>
 {
     options.SwaggerDoc("v1", new OpenApiInfo { Title = "Billora Backend", Version = "v1" });
 
-    // Add JWT Authentication to Swagger
     var jwtSecurityScheme = new OpenApiSecurityScheme
     {
         Scheme = "bearer",
@@ -32,7 +48,6 @@ builder.Services.AddSwaggerGen(options =>
         In = ParameterLocation.Header,
         Type = SecuritySchemeType.Http,
         Description = "Enter your JWT token below",
-
         Reference = new OpenApiReference
         {
             Id = JwtBearerDefaults.AuthenticationScheme,
@@ -41,7 +56,6 @@ builder.Services.AddSwaggerGen(options =>
     };
 
     options.AddSecurityDefinition(jwtSecurityScheme.Reference.Id, jwtSecurityScheme);
-
     options.AddSecurityRequirement(new OpenApiSecurityRequirement
     {
         { jwtSecurityScheme, Array.Empty<string>() }
@@ -50,11 +64,7 @@ builder.Services.AddSwaggerGen(options =>
 
 // Configure JWT Authentication
 var jwtSettings = builder.Configuration.GetSection("JWT");
-builder.Services.AddAuthentication(options =>
-{
-    options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
-    options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
-})
+builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
 .AddJwtBearer(options =>
 {
     options.TokenValidationParameters = new TokenValidationParameters
@@ -67,8 +77,24 @@ builder.Services.AddAuthentication(options =>
         ValidAudience = jwtSettings["Audience"],
         IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSettings["SigningKey"]!))
     };
+
+    // Add this for SignalR token support
+    options.Events = new JwtBearerEvents
+    {
+        OnMessageReceived = context =>
+        {
+            var accessToken = context.Request.Query["access_token"];
+            var path = context.HttpContext.Request.Path;
+            if (!string.IsNullOrEmpty(accessToken) && path.StartsWithSegments("/chathub"))
+            {
+                context.Token = accessToken;
+            }
+            return Task.CompletedTask;
+        }
+    };
 });
 
+// Add your services
 builder.Services.AddScoped<ITokenService, TokenService>();
 builder.Services.AddScoped<IPasswordHasher<User>, PasswordHasher<User>>();
 builder.Services.AddScoped<IAccountRepository, AccountRepostiory>();
@@ -76,15 +102,28 @@ builder.Services.AddScoped<IChatRepository, ChatRepository>();
 
 var app = builder.Build();
 
-// Enable Swagger in development
+// Configure the HTTP request pipeline
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
     app.UseSwaggerUI();
 }
 
-app.UseHttpsRedirection();
+app.UseWebSockets(); // Enable WebSockets
 
-app.MapControllers();
+app.UseRouting();
+
+// Use the specific CORS policy
+app.UseCors("SignalRCors");
+
+app.UseAuthentication();
+app.UseAuthorization();
+
+// Remove the duplicate MapHub and MapControllers
+app.UseEndpoints(endpoints =>
+{
+    endpoints.MapControllers();
+    endpoints.MapHub<ChatHub>("/chathub");
+});
 
 app.Run();
