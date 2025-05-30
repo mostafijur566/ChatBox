@@ -54,6 +54,10 @@
               "target": "Package",
               "version": "[9.0.5, )"
             },
+            "Microsoft.AspNetCore.DataProtection": {
+              "target": "Package",
+              "version": "[9.0.5, )"
+            },
             "Microsoft.AspNetCore.OpenApi": {
               "target": "Package",
               "version": "[9.0.5, )"
@@ -93,6 +97,10 @@
             "Swashbuckle.AspNetCore.SwaggerUI": {
               "target": "Package",
               "version": "[8.1.2, )"
+            },
+            "System.Security.Cryptography.Algorithms": {
+              "target": "Package",
+              "version": "[4.3.1, )"
             },
             "Twilio": {
               "target": "Package",

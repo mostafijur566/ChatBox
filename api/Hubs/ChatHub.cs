@@ -3,6 +3,7 @@ using System.Linq;
 using System.Security.Claims;
 using System.Threading.Tasks;
 using api.Data;
+using api.Helper;
 using api.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.SignalR;
@@ -90,12 +91,15 @@ namespace api.Hubs
             //     Timestamp = DateTime.UtcNow
             // };
 
+            // Encrypt the message content
+            string encryptedContent = EncryptionHelper.Encrypt(content);
+
             // Create and save message
             var message = new Message
             {
                 ChatId = chatId,
                 SenderId = userId.Value,
-                Content = content,
+                Content = encryptedContent,
                 MessageType = messageType,
                 MediaUrl = mediaUrl,
                 Timestamp = DateTime.UtcNow,
@@ -124,6 +128,9 @@ namespace api.Hubs
             }
             await _context.SaveChangesAsync();
 
+            // Decrypt for real-time broadcast (optional: or decrypt in frontend)
+            var decryptedContent = EncryptionHelper.Decrypt(encryptedContent);
+
             // Get message with sender info
             var messageDto = await _context.Messages
                 .Where(m => m.Id == message.Id)
@@ -133,7 +140,7 @@ namespace api.Hubs
                     m.ChatId,
                     m.SenderId,
                     SenderName = m.Sender.Username,
-                    m.Content,
+                    Content  = decryptedContent,
                     m.MessageType,
                     m.MediaUrl,
                     m.Timestamp,
@@ -230,7 +237,7 @@ namespace api.Hubs
                 .SendAsync("MessageEdited", messageId, newContent);
         }
 
-        
+
 
         private int? GetUserId()
         {
