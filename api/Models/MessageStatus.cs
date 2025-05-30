@@ -23,7 +23,7 @@ namespace api.Models
         [ForeignKey("MessageId")]
         public virtual Message Message { get; set; }
 
-         [ForeignKey("UserId")]
+        [ForeignKey("UserId")]
         public virtual User User { get; set; }
     }
 }

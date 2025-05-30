@@ -19,5 +19,6 @@ namespace api.Models
         [ForeignKey("CreatedByUserId")]
         public User? CreatedByUser { get; set; }
         public ICollection<ChatParticipant>? Participants { get; set; }
+        public virtual ICollection<Message> Messages { get; set; }
     }
 }

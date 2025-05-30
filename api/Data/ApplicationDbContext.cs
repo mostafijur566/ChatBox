@@ -16,6 +16,8 @@ namespace api.Data
         public DbSet<User> Users { get; set; }
         public DbSet<Chat> Chats { get; set; }
         public DbSet<ChatParticipant> ChatParticipants { get; set; }
+        public DbSet<Message> Messages { get; set; }
+        public DbSet<MessageStatus> MessageStatuses { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -30,6 +32,30 @@ namespace api.Data
                 .WithMany(c => c.Participants)
                 .HasForeignKey(cp => cp.ChatId)
                 .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<Message>()
+                .HasOne(m => m.Sender)
+                .WithMany()
+                .HasForeignKey(m => m.SenderId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<Message>()
+                .HasOne(m => m.Chat)
+                .WithMany(c => c.Messages)
+                .HasForeignKey(m => m.ChatId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<MessageStatus>()
+                .HasOne(ms => ms.Message)
+                .WithMany()
+                .HasForeignKey(ms => ms.MessageId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<MessageStatus>()
+                .HasOne(ms => ms.User)
+                .WithMany()
+                .HasForeignKey(ms => ms.UserId)
+                .OnDelete(DeleteBehavior.NoAction);
         }
     }
 }

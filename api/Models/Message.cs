@@ -13,7 +13,7 @@ namespace api.Models
         public int SenderId { get; set; }
         public string Content { get; set; }
         public string MessageType { get; set; } = "text";
-        public string? MediaType { get; set; }
+        public string? MediaUrl { get; set; }
         public DateTime Timestamp { get; set; }
         public bool IsDeletedForEveryone { get; set; } = false;
 
