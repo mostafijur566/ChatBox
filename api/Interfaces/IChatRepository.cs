@@ -11,5 +11,6 @@ namespace api.Interfaces
         Task<Chat?> OneToOneChatExistsAsync(int user1Id, int user2Id);
         Task<string> SaveGroupProfilePictureAsync(IFormFile file);
         Task<Chat> CreateChatAsync(Chat chat, IEnumerable<int> participantIds, int createdByUserId, bool isGroup);
+        Task<List<int>> GetChatIdsAsync(int userId);
     }
 }

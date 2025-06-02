@@ -36,6 +36,14 @@ namespace api.Repositories
             return chat;
         }
 
+        public async Task<List<int>> GetChatIdsAsync(int userId)
+        {
+            return await _context.ChatParticipants
+                .Where(cp => cp.UserId == userId)
+                .Select(cp => cp.ChatId)
+                .ToListAsync();
+        }
+
         public async Task<Chat?> OneToOneChatExistsAsync(int user1Id, int user2Id)
         {
             return await _context.Chats

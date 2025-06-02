@@ -4,6 +4,7 @@ using System.Security.Claims;
 using System.Threading.Tasks;
 using api.Data;
 using api.Helper;
+using api.Interfaces;
 using api.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.SignalR;
@@ -15,10 +16,11 @@ namespace api.Hubs
     public class ChatHub : Hub
     {
         private readonly ApplicationDbContext _context;
-
-        public ChatHub(ApplicationDbContext context)
+        private readonly IChatRepository _chatRepo;
+        public ChatHub(ApplicationDbContext context, IChatRepository chatRepo)
         {
             _context = context;
+            _chatRepo = chatRepo;
         }
 
         public override async Task OnConnectedAsync()
@@ -27,10 +29,7 @@ namespace api.Hubs
             if (userId != null)
             {
                 // Get all chats the user belongs to
-                var chatIds = await _context.ChatParticipants
-                    .Where(cp => cp.UserId == userId)
-                    .Select(cp => cp.ChatId)
-                    .ToListAsync();
+                var chatIds = await _chatRepo.GetChatIdsAsync(userId ?? 0);
 
                 // Add connection to all relevant chat groups
                 foreach (var chatId in chatIds)
