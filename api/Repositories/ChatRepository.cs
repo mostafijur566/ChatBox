@@ -44,6 +44,33 @@ namespace api.Repositories
                 .ToListAsync();
         }
 
+        public async Task SaveMessageStatusAsync(int chatId, int userId, Message message)
+        {
+            var participants = await _context.ChatParticipants
+                .Where(cp => cp.ChatId == chatId)
+                .Select(cp => cp.UserId)
+                .ToListAsync();
+
+            foreach (var participantId in participants)
+            {
+                var status = new MessageStatus
+                {
+                    MessageId = message.Id,
+                    UserId = participantId,
+                    Status = participantId == userId ? "sent" : "pending",
+                    UpdatedAt = DateTime.UtcNow
+                };
+                _context.MessageStatuses.Add(status);
+            }
+            await _context.SaveChangesAsync();
+        }
+
+        public async Task<bool> IsUserInChatAsync(int chatId, int userId)
+        {
+            return await _context.ChatParticipants
+                .AnyAsync(cp => cp.ChatId == chatId && cp.UserId == userId);
+        }
+
         public async Task<Chat?> OneToOneChatExistsAsync(int user1Id, int user2Id)
         {
             return await _context.Chats
@@ -74,6 +101,20 @@ namespace api.Repositories
                 await file.CopyToAsync(stream);
             }
             return $"/images/group-profiles/{fileName}";
+        }
+
+        public async Task SaveMessageAsync(Message message)
+        {
+            _context.Messages.Add(message);
+            await _context.SaveChangesAsync();
+        }
+
+        public async Task<MessageStatus?> GetMessageStatusAsync(int messageId, int userId)
+        {
+            return await _context.MessageStatuses.FirstOrDefaultAsync(
+                ms => ms.MessageId == messageId &&
+                ms.UserId == userId
+            );
         }
     }
 }

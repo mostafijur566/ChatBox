@@ -44,9 +44,9 @@ namespace api.Hubs
         {
             var userId = GetUserId();
             if (userId == null) return;
+
             // Verify user is part of the chat
-            var isParticipant = await _context.ChatParticipants
-                .AnyAsync(cp => cp.ChatId == chatId && cp.UserId == userId);
+            var isParticipant = await _chatRepo.IsUserInChatAsync(chatId, userId ?? 0);
 
             if (isParticipant)
             {
@@ -72,8 +72,7 @@ namespace api.Hubs
             // if (user == null) throw new HubException("User not found");
 
             // Verify user is part of the chat
-            var isParticipant = await _context.ChatParticipants
-                .AnyAsync(cp => cp.ChatId == chatId && cp.UserId == userId);
+            var isParticipant = await _chatRepo.IsUserInChatAsync(chatId, userId ?? 0);
 
             if (!isParticipant)
             {
@@ -94,6 +93,7 @@ namespace api.Hubs
             string encryptedContent = EncryptionHelper.Encrypt(content);
 
             // Create and save message
+            
             var message = new Message
             {
                 ChatId = chatId,
@@ -105,27 +105,28 @@ namespace api.Hubs
                 IsDeletedForEveryone = false
             };
 
-            _context.Messages.Add(message);
-            await _context.SaveChangesAsync();
+            await _chatRepo.SaveMessageAsync(message);
 
             // Create initial statuses for all participants
-            var participants = await _context.ChatParticipants
-                .Where(cp => cp.ChatId == chatId)
-                .Select(cp => cp.UserId)
-                .ToListAsync();
+            await _chatRepo.SaveMessageStatusAsync(chatId, userId ?? 0, message);
 
-            foreach (var participantId in participants)
-            {
-                var status = new MessageStatus
-                {
-                    MessageId = message.Id,
-                    UserId = participantId,
-                    Status = participantId == userId ? "sent" : "pending",
-                    UpdatedAt = DateTime.UtcNow
-                };
-                _context.MessageStatuses.Add(status);
-            }
-            await _context.SaveChangesAsync();
+            // await _context.ChatParticipants
+            //     .Where(cp => cp.ChatId == chatId)
+            //     .Select(cp => cp.UserId)
+            //     .ToListAsync();
+
+            // foreach (var participantId in participants)
+            // {
+            //     var status = new MessageStatus
+            //     {
+            //         MessageId = message.Id,
+            //         UserId = participantId,
+            //         Status = participantId == userId ? "sent" : "pending",
+            //         UpdatedAt = DateTime.UtcNow
+            //     };
+            //     _context.MessageStatuses.Add(status);
+            // }
+            // await _context.SaveChangesAsync();
 
             // Decrypt for real-time broadcast (optional: or decrypt in frontend)
             var decryptedContent = EncryptionHelper.Decrypt(encryptedContent);
@@ -161,8 +162,7 @@ namespace api.Hubs
 
         public async Task UpdateMessageStatus(int messageId, int userId, string status, bool isSelfUpdate = true)
         {
-            var messageStatus = await _context.MessageStatuses
-                .FirstOrDefaultAsync(ms => ms.MessageId == messageId && ms.UserId == userId);
+            var messageStatus = await _chatRepo.GetMessageStatusAsync(messageId, userId);
 
             if (messageStatus != null)
             {
