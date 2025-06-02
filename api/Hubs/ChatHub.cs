@@ -51,8 +51,6 @@ namespace api.Hubs
             if (isParticipant)
             {
                 await Groups.AddToGroupAsync(Context.ConnectionId, chatId.ToString());
-                // await Clients.Group(chatId.ToString())
-                //     .SendAsync("UserJoined", userId, DateTime.UtcNow);
             }
         }
 
@@ -64,13 +62,6 @@ namespace api.Hubs
                 throw new HubException("User not authenticated");
             }
 
-            // var user = await _context.Users
-            //     .Where(u => u.Id == userId)
-            //     .Select(u => new { u.Id, u.Username })
-            //     .FirstOrDefaultAsync();
-
-            // if (user == null) throw new HubException("User not found");
-
             // Verify user is part of the chat
             var isParticipant = await _chatRepo.IsUserInChatAsync(chatId, userId ?? 0);
 
@@ -78,16 +69,6 @@ namespace api.Hubs
             {
                 throw new HubException("User is not part of this chat");
             }
-
-            // // Create message object (not saved to DB)
-            // var message = new
-            // {
-            //     ChatId = chatId,
-            //     SenderId = userId,
-            //     SenderName = user.Username,
-            //     Content = content,
-            //     Timestamp = DateTime.UtcNow
-            // };
 
             // Encrypt the message content
             string encryptedContent = EncryptionHelper.Encrypt(content);
@@ -109,24 +90,6 @@ namespace api.Hubs
 
             // Create initial statuses for all participants
             await _chatRepo.SaveMessageStatusAsync(chatId, userId ?? 0, message);
-
-            // await _context.ChatParticipants
-            //     .Where(cp => cp.ChatId == chatId)
-            //     .Select(cp => cp.UserId)
-            //     .ToListAsync();
-
-            // foreach (var participantId in participants)
-            // {
-            //     var status = new MessageStatus
-            //     {
-            //         MessageId = message.Id,
-            //         UserId = participantId,
-            //         Status = participantId == userId ? "sent" : "pending",
-            //         UpdatedAt = DateTime.UtcNow
-            //     };
-            //     _context.MessageStatuses.Add(status);
-            // }
-            // await _context.SaveChangesAsync();
 
             // Decrypt for real-time broadcast (optional: or decrypt in frontend)
             var decryptedContent = EncryptionHelper.Decrypt(encryptedContent);
